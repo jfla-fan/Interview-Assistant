@@ -34,7 +34,7 @@ MarkdownViewer::MarkdownViewer(QWidget* parent)
 
     m_highlighter = new QSourceHighlite::QSourceHighliter(m_textBrowser->document());
 
-    switchMode(Mode_Chat);
+    switchMode(Mode_SinglePage);
 }
 
 
