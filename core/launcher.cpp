@@ -29,8 +29,6 @@
 #include <QMimeDatabase>
 #include <QStandardPaths>
 
-#include "test_data.h"
-
 
 Launcher::Launcher(QObject *parent)
     : QObject{ parent }
@@ -51,7 +49,6 @@ Launcher::Launcher(QObject *parent)
     initializeHotkeys();
     createConnections();
 
-    d->m_overlay->setMarkdownText(EXAMPLE_MULTIPLECODE_TEXT2);
     d->m_overlay->show();
 
     d->m_overlay->setExcludeFromCapture(ConfigManager::instance()->appConfig()->excludeFromCapture);
