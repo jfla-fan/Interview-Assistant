@@ -1,0 +1,80 @@
+#topBar,
+#bottomBar {
+    background: rgba(50, 50, 50, 220);
+}
+
+#topBar {
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+#bottomBar {
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+#topSpacer {
+    background-color: transparent;
+}
+
+#bottomSpacer {
+    background: transparent;
+}
+
+/* Status indicator */
+#statusIndicator {
+    border-radius: 8px;
+    border: 1px solid #333;
+    min-width: 16px;
+    min-height: 16px;
+}
+
+/* Buttons in top bar */
+#toggleModeButton,
+#cropButton,
+#settingsButton {
+    background: transparent;
+    font-size: 16px;
+    border: none;
+    color: #e0e0e0;
+}
+`
+/* Counter label */
+#counterLabel {
+    color: gray;
+    font-weight: bold;
+    background: transparent;
+    min-width: 20px;
+    min-height: 20px;
+    qproperty-alignment: AlignCenter;
+}
+
+/* Request info label */
+#requestInfoLabel {
+    color: gray;
+    background: transparent;
+}
+
+/* Main text browser (single-page mode) */
+QTextBrowser {
+    background: rgba(30, 30, 30, 220);
+    color: #e0e0e0;
+    font-family: Consolas, monospace;
+    padding: 15px;
+    border: none;
+}
+
+QTextBrowser a {
+    color: #4da6ff;
+}
+
+QTextBrowser pre {
+    background: rgba(0, 0, 0, 0.3);
+    border-left: 3px solid #4da6ff;
+    padding: 10px;
+    margin: 5px 0;
+}
+
+QTextBrowser code {
+    font-family: Consolas, monospace;
+}

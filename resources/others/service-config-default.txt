@@ -1,0 +1,324 @@
+globals:
+  GEMINI_API_KEY: ""
+  YANDEX_API_KEY: ""
+  YANDEX_FOLDER: ""
+  DEFAULT_PROMPT: "The picture or pictures provided to you contain coding problem. Analyze that problem and write an effective solution in C++."
+  RUS_PROMPT: "{{ DEFAULT_PROMPT }}. Write answer in russian."
+
+
+templates:
+  RequestBase:
+    headers: |
+        "Content-Type": "application/json"
+        "User-Agent": "Mozilla/5.0"
+        "Accept": "*/*"
+    useProxies: true
+    ignoreSslErrors: true
+    method: POST
+    enabled: true
+
+  YandexServiceBase:
+    baseUrl: ""
+    requests:
+      - name: AnalyzeImageReponses
+        extends: RequestBase
+        headers: |
+            ++append++
+            Authorization: Api-Key {{ YANDEX_API_KEY }}
+        body: |
+            {
+                "model": "gpt://{{YANDEX_FOLDER}}/gemma-3-27b-it/latest",
+                "reasoning": { "effort": "low" },
+                "input": [
+                        {
+                            "role": "developer",
+                            "content": "Act as a professional software engineer and C++ developer"
+                        },
+
+                        {% for message in Messages %}
+                            {% if existsIn(message, "RequestMessageId") %}
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "input_text",
+                                            "text": {{ default(message.CustomPrompt, DEFAULT_PROMPT) | json_escape }}
+                                        }{% if length(message.Files) > 0 %},{% endif %}
+                                        {% for file in message.Files %}
+                                            {
+                                                "type": "input_image",
+                                                "image_url": {{ concat("data:", file.Type, ";base64,", file.Data) | json_escape }}
+                                            }{% if not loop.is_last %},{% endif %}
+                                        {% endfor %}
+                                    ]
+                                },
+                            {% endif %}
+
+                            {% if existsIn(message, "ReplyMessageId") %}
+                                {
+                                   "role": "assistant",
+                                   "content": {{ json_extract(message.ServiceReply.Body, "output.0.content.0.text") | json_escape }}
+                                },
+                            {% endif %}
+                        {% endfor %}
+
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_text",
+                                    "text": {{ default(CustomPrompt, RUS_PROMPT) | json_escape }}
+                                }{% if length(Files) > 0 %},{% endif %}
+                                {% for file in Files %}
+                                    {
+                                        "type": "input_image",
+                                        "image_url": {{ concat("data:", file.Type, ";base64,", file.Data) | json_escape }}
+                                    }{% if not loop.is_last %},{% endif %}
+                                {% endfor %}
+                            ]
+                        }
+                ],
+                "temperature": 0.8,
+                "max_output_tokens": 2000
+            }
+        display:
+            request:
+                selector: "{{ default(CustomPrompt, DEFAULT_PROMPT) }}"
+            reply:
+                selector: "{{ json_extract(ServiceReply.Body, \"output.0.content.0.text\") }}"
+
+
+  GoogleServiceBase:
+    baseUrl: ""
+    requests:
+      - name: AnalyzeTaskImageEng
+        extends: RequestBase
+        body: |
+            {
+              "contents": [
+                {% for message in Messages %}
+                    {% if existsIn(message, "RequestMessageId") %}
+                        {
+                          "role": "user",
+                          "parts": [
+                              { "text": "{{ default(message.CustomPrompt, DEFAULT_PROMPT) }}" }
+                              {% for data in message.Files %}
+                              , {
+                                "inlineData": {
+                                  "mimeType": "{{ data.Type }}",
+                                  "data": "{{ data.Data }}"
+                                }
+                              }
+                              {% endfor %}
+                          ]
+                        },
+                    {% endif %}
+
+                    {% if existsIn(message, "ReplyMessageId") %}
+                      {{ get(parse_json(message.ServiceReply.Body), "candidates.0.content") }},
+                    {% endif %}
+                {% endfor %}
+
+                {
+                  "role": "user",
+                  "parts": [
+                      { "text": "{{ default(CustomPrompt, DEFAULT_PROMPT) }}." }
+                      {% for data in Files %}
+                      , {
+                        "inlineData": {
+                          "mimeType": "{{ data.Type }}",
+                          "data": "{{ data.Data }}"
+                        }
+                      }
+                      {% endfor %}
+                  ]
+                }
+              ]
+            }
+        display:
+            request:
+                selector: "{{ default(CustomPrompt, DEFAULT_PROMPT) }}"
+            reply:
+                selector: "{{ get(parse_json(ServiceReply.Body), \"candidates.0.content.parts.0.text\") }}"
+
+      - name: AnalyzeTaskImageRus
+        extends: RequestBase
+        body: |
+          {
+            "contents": [
+              {% for message in Messages %}
+                  {% if existsIn(message, "RequestMessageId") %}
+                      {
+                        "role": "user",
+                        "parts": [
+                            { "text": "{{ default(message.CustomPrompt, RUS_PROMPT) }}" }
+                            {% for data in message.Files %}
+                            , {
+                              "inlineData": {
+                                "mimeType": "{{ data.Type }}",
+                                "data": "{{ data.Data }}"
+                              }
+                            }
+                            {% endfor %}
+                        ]
+                      },
+                  {% endif %}
+
+                  {% if existsIn(message, "ReplyMessageId") %}
+                    {{ get(parse_json(message.ServiceReply.Body), "candidates.0.content") }},
+                  {% endif %}
+              {% endfor %}
+
+              {
+                "role": "user",
+                "parts": [
+                    { "text": "{{ default(CustomPrompt, RUS_PROMPT) }}." }
+                    {% for data in Files %}
+                    , {
+                      "inlineData": {
+                        "mimeType": "{{ data.Type }}",
+                        "data": "{{ data.Data }}"
+                      }
+                    }
+                    {% endfor %}
+                ]
+              }
+            ]
+          }
+        display:
+            request:
+                selector: "{{ default(CustomPrompt, RUS_PROMPT) }}"
+            reply:
+                selector: "{{ get(parse_json(ServiceReply.Body), \"candidates.0.content.parts.0.text\") }}"
+
+
+
+serviceProviders:
+    - name: Google
+      services:
+        - name: Gemini/gemini-2.5-flash
+          baseUrl: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{GEMINI_API_KEY}}"
+          extends: GoogleServiceBase
+
+    - name: Yandex
+      services:
+        - name: Gemma-3-27b-it/latest
+          baseUrl: "https://ai.api.cloud.yandex.net/v1/responses"
+          extends: YandexServiceBase
+
+    - name: Ollama
+      services:
+        - name: gemma3:27b
+          baseUrl: "http://localhost:11434/api/generate"
+          requests:
+            - name: AnalyzeImages
+              extends: RequestBase
+              body: |
+                {
+                    "model": "gemma3:27b",
+                    "prompt": "{{ default(CustomPrompt, RUS_PROMPT) }}",
+                    "images": [ {% for file in Files %} "{{ file.Data }}" {% if not loop.is_last %}, {% endif %} {% endfor %} ],
+                    "stream": false
+                }
+              display:
+                request:
+                    selector: "{{ default(CustomPrompt, RUS_PROMPT) }}"
+                reply:
+                    selector: "{{ get(parse_json(ServiceReply.Body), \"response\") }}"
+
+            - name: AnalyzeImagesChat
+              url: "http://localhost:11434/api/chat"
+              extends: RequestBase
+              body: |
+                {
+                    "model": "gemma3:27b",
+                    "messages": [
+                        {% for message in Messages %}
+                            {% if existsIn(message, "RequestMessageId") %}
+                                {
+                                  "role": "user",
+                                  "content": "{{ default(message.CustomPrompt, RUS_PROMPT) }}",
+                                  "images": [
+                                        {% for file in message.Files %}
+                                            "{{ file.Data }}"{% if not loop.is_last %},{% endif %}
+                                        {% endfor %}
+                                  ]
+                                },
+                            {% endif %}
+
+                            {% if existsIn(message, "ReplyMessageId") %}
+                               {
+                                 "role": "assistant",
+                                 "content": "{{ get(parse_json(message.ServiceReply.Body), "message.content") }}",
+                                 "images": [
+                                       {% for file in message.Files %}
+                                           "{{ file.Data }}"{% if not loop.is_last %},{% endif %}
+                                       {% endfor %}
+                                 ]
+                               },
+                            {% endif %}
+                        {% endfor %}
+                        {
+                          "role": "user",
+                          "content": "{{ default(CustomPrompt, RUS_PROMPT) }}",
+                          "images": [
+                                {% for file in Files %}
+                                    "{{ file.Data }}"{% if not loop.is_last %},{% endif %}
+                                {% endfor %}
+                          ]
+                        }
+                    ],
+                    "stream": false
+                }
+              display:
+                request:
+                    selector: "{{ default(CustomPrompt, RUS_PROMPT) }}"
+                reply:
+                    selector: "{{ get(parse_json(ServiceReply.Body), \"message.content\") }}"
+
+            - name: AnalyzeImagesChat2
+              url: "http://localhost:11434/api/chat"
+              extends: RequestBase
+              body: |
+                {
+                    "model": "gemma3:27b",
+                    "messages": [
+                        {% for message in Messages %}
+                            {% if existsIn(message, "RequestMessageId") %}
+                                {
+                                    "role": "user",
+                                    "content": {{ default(message.CustomPrompt, RUS_PROMPT) | json_escape }},
+                                    "images": [
+                                          {% for file in message.Files %}
+                                              {{ file.Data | json_escape }}{% if not loop.is_last %},{% endif %}
+                                          {% endfor %}
+                                    ]
+                                },
+                            {% endif %}
+
+                            {% if existsIn(message, "ReplyMessageId") %}
+                                {
+                                   "role": "assistant",
+                                   "content": {{ json_extract(message.ServiceReply.Body, "message.content") | json_escape }},
+                                },
+                            {% endif %}
+                        {% endfor %}
+                        {
+                            "role": "user",
+                            "content": {{ default(CustomPrompt, RUS_PROMPT) | json_escape }},
+                            "images": [
+                                  {% for file in Files %}
+                                      {{ file.Data | json_escape }}{% if not loop.is_last %},{% endif %}
+                                  {% endfor %}
+                            ]
+                        }
+                      ],
+                      "stream": false
+                  }
+              display:
+                request:
+                    selector: "{{ default(CustomPrompt, RUS_PROMPT) }}"
+                reply:
+                    selector: "{{ json_extract(ServiceReply.Body, \"message.content\") }}"
+
+

@@ -1,0 +1,131 @@
+import os
+import shutil
+import subprocess
+import argparse
+import sys
+from pathlib import Path
+
+
+QT_VERSION = "@QT_VERSION@"
+WINDEPLOYQT_EXE = r"@WINDEPLOYQT_EXECUTABLE@"
+PROJECT_SOURCE_DIR = r"@CMAKE_SOURCE_DIR@"
+PROJECT_BINARY_DIR = r"@CMAKE_BINARY_DIR@"
+BINARY_OUTPUT_DIR = r"@BINARY_OUTPUT_DIR@"
+APP_NAME = "InterviewAssistant"
+EXE_NAME = f"{APP_NAME}.exe"
+PROJECT_VERSION = "@PROJECT_VERSION@"
+
+def find_nsis():
+    nsis_exe = shutil.which("makensis")
+    if not nsis_exe:
+        possible_paths = [
+            r"C:\Program Files (x86)\NSIS\makensis.exe",
+            r"C:\Program Files\NSIS\makensis.exe",
+            r"C:\Program Files (x86)\NSIS\Bin\makensis.exe",
+        ]
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                nsis_exe = path
+                break
+
+    return nsis_exe
+
+def check_qt_version():
+    print(f"Detected Qt Version: {QT_VERSION}")
+    major, minor, patch = map(int, QT_VERSION.split('.'))
+    if major < 6 or (major == 6 and minor < 8):
+        print("WARNING: Qt version is older than 6.8.1. It hasn't been tested.")
+
+def clean_and_create_dir(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path)
+
+def run_windeployqt(bin_path):
+    print("Running windeployqt...")
+
+    cmd = [
+        WINDEPLOYQT_EXE,
+        "--dir", str(bin_path),
+        "--libdir", str(bin_path),
+        "--plugindir", str(bin_path / "plugins"),
+        "--no-translations",
+        "--compiler-runtime", # Copies MSVC runtime DLLs
+        "--release",
+        str(bin_path / EXE_NAME)
+    ]
+
+    subprocess.run(cmd, check=True)
+
+def create_installer(nsis_exe, staging_dir):
+    if not nsis_exe:
+        print("Error: makensis.exe not found. Cannot create installer.")
+        return
+
+    print("Creating Installer...")
+    nsis_script = Path(PROJECT_SOURCE_DIR) / "packaging" / "windows" / "installer.nsi"
+
+    cmd = [
+        nsis_exe,
+        f"/DAPP_VERSION={PROJECT_VERSION}",
+        f"/DSTAGING_DIR={staging_dir}",
+        f"/DOUTPUT_DIR={PROJECT_BINARY_DIR}",
+        str(nsis_script)
+    ]
+
+    subprocess.run(cmd, check=True)
+
+def main():
+    parser = argparse.ArgumentParser(description="Package InterviewAssistant Deployment Tool")
+
+    parser.add_argument("--config", default="Release",
+                        choices=["Release", "Debug", "RelWithDebInfo", "MinSizeRel"],
+                        help="Build configuration for windeployqt flags")
+    parser.add_argument("--installer", action="store_true",
+                        help="Create NSIS installer after bundling")
+
+    args = parser.parse_args()
+
+    nsis_exe = find_nsis()
+    if nsis_exe == None:
+        print(f"Error: Failed to find NSIS. Did you install it?")
+        sys.exit(1)
+
+    check_qt_version()
+
+    built_exe_path = Path(BINARY_OUTPUT_DIR) / EXE_NAME
+
+    if not built_exe_path.exists():
+        print(f"Error: Could not find {EXE_NAME}. Did you build the project?")
+        print(f"Checked: {built_exe_path}")
+        sys.exit(1)
+
+    # 1. Prepare Staging Directory
+    staging_dir = Path(PROJECT_BINARY_DIR) / "package_staging"
+    print(f"Staging files to: {staging_dir}")
+    clean_and_create_dir(staging_dir)
+
+    # 2. Copy Executable
+    print(f"Copying executable: {built_exe_path} -> {staging_dir / EXE_NAME}")
+    shutil.copy(built_exe_path, staging_dir / EXE_NAME)
+
+    # 3. Copy some assets
+    license_src = Path(PROJECT_SOURCE_DIR) / "packaging" / "windows" / "license.txt"
+    if license_src.exists():
+        shutil.copy(license_src, staging_dir / "license.txt")
+    else:
+        print(f"Warning: license.txt not found at {license_src}")
+
+    # 4. Run Windeployqt
+    print("Runnning windeployqt...")
+    run_windeployqt(staging_dir)
+
+    print("Application successfully bundled.")
+
+    # 5. Create Installer (Optional)
+    if args.installer:
+        create_installer(nsis_exe, staging_dir)
+
+if __name__ == "__main__":
+    main()

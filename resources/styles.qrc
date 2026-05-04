@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file alias="styles/markdown-viewer.style">styles/markdown-viewer.style</file>
+    </qresource>
+    <qresource prefix="/">
+        <file alias="styles/settings.style">styles/settings.style</file>
+    </qresource>
+</RCC>
