@@ -1,9 +1,9 @@
-project(sandbox)
+project(Sandbox)
 
-add_executable(sandbox
+add_executable(Sandbox
     sandbox.cpp
     ${ROOT_RESOURCES}
 )
 
-target_link_libraries(sandbox PRIVATE core)
-target_compile_definitions(sandbox PRIVATE BUILD_SANDBOX)
+target_link_libraries(Sandbox PRIVATE core)
+target_compile_definitions(Sandbox PRIVATE BUILD_SANDBOX)
